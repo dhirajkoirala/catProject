@@ -1,37 +1,76 @@
-const express = require('express');
-const path = require('path');
+const express = require("express");
+const path = require("path");
 const router = express.Router();
-const upload = require('../middleware/image_uploader')
-const Resize = require('../utility/image_resizer')
-const Image = require('../models/form')
+const Image = require("../models/Image");
+const multerUploads = require("../middleware/image_uploader");
+const sharp = require("sharp");
+const ExifImage = require("exif").ExifImage;
+const fs = require("fs");
+require("dotenv").config();
 
-router.get('/', async function (req, res) {
-  const images=await Image.find({})
-  res.send(images)
+router.get("/", async function(req, res) {
+  const images = await Image.find({}, " -__v");
+  res.send(images);
 });
 
-router.post('/', upload.single('image'), async function (req, res) {
-  console.log('I am here');
+router.get("/:id", async function(req, res) {
+  const images = await Image.findById(req.params.id, "-_id -__v");
+  res.send(images);
+});
 
-  const imagePath = path.join(__dirname, '/../public/images');
-  const fileUpload = new Resize(imagePath);
-  if (!req.file) {
-    res.status(401).json({ error: 'Please provide an image' });
+router.post("/", multerUploads, async (req, res) => {
+  const image_path =
+    path.join(__dirname, "/../public/images/") + req.file.filename;
+
+  sharp(req.file.path)
+    .resize(800, 800)
+    .toFile(image_path);
+
+  try {
+    new ExifImage({ image: req.file.path }, async function(error, exifData) {
+      if (error) console.log("Error: " + error.message);
+      else {
+        const payload = {
+          ...req.body,
+          image_source: image_path,
+          Longitude: exifData.gps.GPSLongitude,
+          Latitude: exifData.gps.GPSLatitude
+        };
+        fs.unlink(req.file.path, (err) => {
+          if (err) {
+            console.error(err)
+            return
+          }
+        
+        })
+        const image = new Image(payload);
+        const result = await image.save();
+        res.status(201).send(result);
+      }
+    });
+  } catch (error) {
+    console.log("Error: " + error.message);
   }
+});
 
-  const filename = await fileUpload.save(req.file.buffer);
-  console.log(req.body);
-  
-  const payload = {
-    category: req.body.category,
-    title: req.body.title,
-    description: req.body.description,
-    image_source: filename
-  }
+router.put("/:id", async function(req, res) {
+  const image = await Image.findById(req.params.id);
+  image.category = req.body.category;
+  image.title = req.body.title;
+  image.description = req.body.description;
+  const result=await image.save()
+  res.send(result)
+});
 
-  const image=  Image (payload)
-  await image.save()
-  return res.status(200).json(image);
-  });
+router.delete("/:id", async function(req, res) {
+  const image = await Image.findOneAndDelete(req.params.id);
+  if (!image) return res.status(400).send('No data found of given id ')
+  try {
+    fs.unlinkSync(image.image_source)
+    res.send("Data removed");    
+  } catch(err) {
+    console.error(err)
+  } 
+});
 
 module.exports = router;
