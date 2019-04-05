@@ -6,9 +6,11 @@ const multerUploads = require("../middleware/image_uploader");
 const sharp = require("sharp");
 const ExifImage = require("exif").ExifImage;
 const fs = require("fs");
+const auth=require('../middleware/auth')
 require("dotenv").config();
 
-router.get("/", async function(req, res) {
+
+router.get("/",async function(req, res) {
   const images = await Image.find({}, " -__v");
   res.send(images);
 });
@@ -17,6 +19,12 @@ router.get("/:id", async function(req, res) {
   const images = await Image.findById(req.params.id, "-_id -__v");
   res.send(images);
 });
+
+router.get("/:title", async function(req, res) {
+  const images = await Image.find({title : req.params.title})
+  res.send(images);
+});
+
 
 router.post("/", multerUploads, async (req, res) => {
   const image_path =

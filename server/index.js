@@ -8,7 +8,10 @@ const fs = require("fs");
 const db = require('./startup/databae_config')
 const image = require('./router/image_form');
 const home=require('./router/home')
-const https_redirection=require('./middleware/https_redirection')
+const user= require('./router/user')
+const helmet=require('helmet')
+
+
 
 
 
@@ -17,25 +20,40 @@ app.enable('trust proxy');
 app.use(express.json())
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors())
+app.use(helmet())
 db;
 
 
 
-app.use("*",https_redirection)
+  
+
 app.use(express.static('public'));
-app.set('view engine', 'ejs');
+app.set('view engine', 'pug')
+
+
+
+
+
+
 app.use('',home)
 app.use('/image', image);
+app.use('/user',user)
+
+
 
 
 var privateKey  = fs.readFileSync(__dirname+'/startup/sslcert/server.key', 'utf8');
 var certificate = fs.readFileSync(__dirname+'/startup/sslcert/server.cert', 'utf8');
  
-var credentials = {key: privateKey, cert: certificate};
+const options = {
+      key: privateKey,
+      cert: certificate
+};
 
 
-var httpServer = http.createServer(app);
-var httpsServer = https.createServer(credentials, app);
 
-httpServer.listen(8080);
-httpsServer.listen(8443);
+https.createServer(options, app).listen(3000);
+http.createServer((req, res) => {
+      res.writeHead(301, { 'Location': 'https://localhost:3000' + req.url });
+      res.end();
+}).listen(8080);
